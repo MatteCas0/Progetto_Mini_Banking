@@ -60,9 +60,53 @@ POST /accounts/{idAccount}/deposits per registrare un deposito
 */
   public function deposito(Request $request, Response $response, $args){
     $mysqli_connection = new MySQLi('my_mariadb', 'root', 'ciccio', 'banca');
-    $result = $mysqli_connection->query("SELECT * FROM accounts");
-    $results = $result->fetch_all(MYSQLI_ASSOC);
 
+    $body = $request->getParsedBody();
+    $data = json_decode($body, true);
+
+    /**
+     *  bisogna validare i valori dentro $data
+     * 
+     */
+
+    if(!isset($data["amount"]) || !isset($data["description"])){
+      $results = ["result"=>false, "error"=>"Wrong params"];
+      $response->getBody()->write(json_encode($results));
+    return $response->withHeader("Content-type", "application/json")->withStatus(400);
+    }
+
+    $stmt = $mysqli_connection->prepare("SELECT `balance_after` FROM `transactions` WHERE `account_id` = ? ORDER BY `created_at` DESC LIMIT 1;");
+    $stmt ->bind_param("i", $args['idAccount']);
+    $res=[];
+    if($stmt->execute())
+    {
+      $stmt->execute();
+      $query = $stmt->get_result();
+      if($query)
+        $res = $query->fetch_all(MYSQLI_ASSOC);
+    }
+
+    $balanceAfter = $res["balance_after"];
+
+    $data["type"] = "deposit";
+    
+    $keys = array_keys($data);
+    $values = array_values($data);
+
+    $keys = implode("', '", $keys);
+    $values = implode("', '", $values);
+
+
+
+
+    if(!$mysqli_connection->query("INSERT INTO transactions ('$keys') VALUES ('$values')"))
+    {
+      $results = ["result"=>false, "error"=>"Wrong params"];
+      $response->getBody()->write(json_encode($results));
+      return $response->withHeader("Content-type", "application/json")->withStatus(400);
+    }
+
+    $results = ["result"=>true, "msg"=>"transaction saved"];
     $response->getBody()->write(json_encode($results));
     return $response->withHeader("Content-type", "application/json")->withStatus(200);
   }
